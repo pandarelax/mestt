@@ -47,6 +47,7 @@
               with pkgs;
               [
                 go
+                golangci-lint
                 ffmpeg
                 python314
               ]

@@ -28,11 +28,14 @@ type model struct {
 	quitting  bool
 }
 
-type tickMsg struct{}
-type stopMsg struct {
-	recording audio.Recording
-	err       error
-}
+type (
+	tickMsg struct{}
+	stopMsg struct {
+		recording audio.Recording
+		err       error
+	}
+)
+
 type cancelMsg struct {
 	err error
 }
