@@ -12,6 +12,7 @@ import (
 type Config struct {
 	Audio         AudioConfig         `toml:"audio"`
 	Transcription TranscriptionConfig `toml:"transcription"`
+	Local         LocalConfig         `toml:"local"`
 	Output        OutputConfig        `toml:"output"`
 }
 
@@ -26,6 +27,12 @@ type TranscriptionConfig struct {
 	Model          string `toml:"model"`
 	TimeoutSeconds int    `toml:"timeout_seconds"`
 	BaseURL        string `toml:"base_url"`
+}
+
+type LocalConfig struct {
+	PythonCommand string `toml:"python_command"`
+	Device        string `toml:"device"`
+	ComputeType   string `toml:"compute_type"`
 }
 
 type OutputConfig struct {
@@ -44,6 +51,11 @@ func Default() Config {
 			Model:          "gpt-4o-mini-transcribe",
 			TimeoutSeconds: 120,
 			BaseURL:        "https://api.openai.com/v1",
+		},
+		Local: LocalConfig{
+			PythonCommand: "python3",
+			Device:        "cpu",
+			ComputeType:   "int8",
 		},
 		Output: OutputConfig{
 			DefaultTarget: "stdout",

@@ -49,6 +49,7 @@ func Run(ctx context.Context, args []string) error {
 			History: historyStore,
 			Output:  output.Writer{},
 			Client:  transcribe.OpenAIClient{},
+			Local:   transcribe.LocalClient{},
 		},
 		Record: app.RecordService{
 			Recorder: audioRecorder,
@@ -57,6 +58,7 @@ func Run(ctx context.Context, args []string) error {
 				History: historyStore,
 				Output:  output.Writer{},
 				Client:  transcribe.OpenAIClient{},
+				Local:   transcribe.LocalClient{},
 			},
 		},
 		History: app.HistoryService{Store: historyStore},

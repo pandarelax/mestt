@@ -23,7 +23,7 @@ func newAuthCmd(ctx context.Context, deps dependencies) *cobra.Command {
 			models := transcribe.Models()
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Select a transcription model:")
 			for i, model := range models {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s (%s)\n", i+1, model.Label, model.ID)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s [%s] (%s)\n", i+1, model.Label, model.Provider, model.ID)
 			}
 
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), "Model number [1]: ")
@@ -40,6 +40,14 @@ func newAuthCmd(ctx context.Context, deps dependencies) *cobra.Command {
 					return fmt.Errorf("invalid model selection")
 				}
 				selected = models[idx-1]
+			}
+
+			if selected.Provider == transcribe.ProviderLocal {
+				if err := deps.Auth.SaveLocal(string(selected.ID)); err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Saved local transcription configuration with model %s\n", selected.ID)
+				return nil
 			}
 
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), "OpenAI API key: ")
