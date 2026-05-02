@@ -15,6 +15,10 @@ func buildRecordArgs(goos string, opts RecordOptions, outputPath string) ([]stri
 
 	switch goos {
 	case "linux":
+		driver := opts.Driver
+		if driver == "" {
+			driver = "pulse"
+		}
 		device := opts.Device
 		if device == "" || device == "default" {
 			device = "default"
@@ -23,7 +27,7 @@ func buildRecordArgs(goos string, opts RecordOptions, outputPath string) ([]stri
 			"-hide_banner",
 			"-loglevel", "error",
 			"-y",
-			"-f", "pulse",
+			"-f", driver,
 			"-i", device,
 			"-ar", fmt.Sprintf("%d", sampleRate),
 			"-ac", "1",
@@ -99,7 +103,7 @@ func parseDarwinDevices(output string) []Device {
 		if len(match) != 3 {
 			continue
 		}
-		devices = append(devices, Device{ID: match[1], Name: match[2], Default: match[1] == "0"})
+		devices = append(devices, Device{ID: match[1], Name: match[2], Driver: "avfoundation", Default: match[1] == "0"})
 	}
 	return devices
 }
@@ -112,7 +116,7 @@ func parseLinuxDevices(output string) []Device {
 		if len(match) != 4 {
 			continue
 		}
-		devices = append(devices, Device{ID: match[2], Name: match[3], Default: match[1] == "*" || match[2] == "default"})
+		devices = append(devices, Device{ID: match[2], Name: match[3], Driver: "pulse", Default: match[1] == "*" || match[2] == "default"})
 	}
 	return devices
 }

@@ -15,16 +15,33 @@ import (
 
 type TranscribeService struct {
 	Secrets secret.Store
-	History *history.Store
-	Output  output.Writer
-	Client  transcribe.OpenAIClient
-	Local   transcribe.LocalClient
+	History historySaver
+	Output  outputWriter
+	Client  openAITranscriber
+	Local   localTranscriber
+}
+
+type historySaver interface {
+	Save(ctx context.Context, entry history.Entry) error
+}
+
+type outputWriter interface {
+	Write(ctx context.Context, text string, target output.Target) error
+}
+
+type openAITranscriber interface {
+	Transcribe(ctx context.Context, req transcribe.Request) (transcribe.Result, error)
+}
+
+type localTranscriber interface {
+	Transcribe(ctx context.Context, req transcribe.LocalRequest) (transcribe.Result, error)
 }
 
 type TranscribeInput struct {
 	AudioPath  string
 	Target     output.Target
 	SourceKind string
+	SourcePath string
 }
 
 func (s TranscribeService) Run(ctx context.Context, input TranscribeInput) (transcribe.Result, error) {
@@ -36,6 +53,9 @@ func (s TranscribeService) Run(ctx context.Context, input TranscribeInput) (tran
 	model, err := transcribe.LookupModel(cfg.Transcription.Model)
 	if err != nil {
 		return transcribe.Result{}, err
+	}
+	if cfg.Transcription.Provider != "" && cfg.Transcription.Provider != string(model.Provider) {
+		return transcribe.Result{}, fmt.Errorf("configured provider %q does not match selected model provider %q", cfg.Transcription.Provider, model.Provider)
 	}
 
 	var result transcribe.Result
@@ -80,10 +100,14 @@ func (s TranscribeService) Run(ctx context.Context, input TranscribeInput) (tran
 		if sourceKind == "" {
 			sourceKind = "file"
 		}
+		sourcePath := input.SourcePath
+		if sourcePath == "" && sourceKind == "file" {
+			sourcePath = input.AudioPath
+		}
 		if err := s.History.Save(ctx, history.Entry{
 			CreatedAt:  time.Now(),
 			SourceKind: sourceKind,
-			SourcePath: input.AudioPath,
+			SourcePath: sourcePath,
 			ModelID:    result.ModelID,
 			Transcript: result.Text,
 		}); err != nil {

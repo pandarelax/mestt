@@ -1,14 +1,17 @@
 package transcribe
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 )
+
+//go:embed faster_whisper_helper.py
+var embeddedHelperScript string
 
 type LocalRequest struct {
 	AudioPath     string
@@ -32,42 +35,47 @@ func (c LocalClient) Transcribe(ctx context.Context, req LocalRequest) (Result, 
 		pythonCommand = "python3"
 	}
 
-	scriptPath := req.ScriptPath
-	if scriptPath == "" {
-		scriptPath = helperScriptPath()
-	}
-
 	args := []string{
-		scriptPath,
 		"--audio", req.AudioPath,
 		"--model", req.Model.APIName,
-		"--device", defaultString(req.Device, "cuda"),
-		"--compute-type", defaultString(req.ComputeType, "float16"),
+		"--device", defaultString(req.Device, "cpu"),
+		"--compute-type", defaultString(req.ComputeType, "int8"),
 	}
 	if strings.TrimSpace(req.Language) != "" {
 		args = append(args, "--language", req.Language)
 	}
 
-	cmd := exec.CommandContext(ctx, pythonCommand, args...)
-	output, err := cmd.CombinedOutput()
+	cmdArgs := args
+	if strings.TrimSpace(req.ScriptPath) != "" {
+		cmdArgs = append([]string{req.ScriptPath}, args...)
+	} else {
+		cmdArgs = append([]string{"-c", embeddedHelperScript}, args...)
+	}
+
+	cmd := exec.CommandContext(ctx, pythonCommand, cmdArgs...)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
 	if err != nil {
-		return Result{}, fmt.Errorf("run local faster-whisper helper: %w: %s", err, strings.TrimSpace(string(output)))
+		stderrText := strings.TrimSpace(stderr.String())
+		if stderrText != "" {
+			return Result{}, fmt.Errorf("run local faster-whisper helper: %w: %s", err, stderrText)
+		}
+		return Result{}, fmt.Errorf("run local faster-whisper helper: %w", err)
 	}
 
 	var parsed localResponse
-	if err := json.Unmarshal(output, &parsed); err != nil {
+	if err := json.Unmarshal(stdout.Bytes(), &parsed); err != nil {
+		stderrText := strings.TrimSpace(stderr.String())
+		if stderrText != "" {
+			return Result{}, fmt.Errorf("parse local transcription response: %w: %s", err, stderrText)
+		}
 		return Result{}, fmt.Errorf("parse local transcription response: %w", err)
 	}
 
 	return Result{Text: parsed.Text, ModelID: string(req.Model.ID), Provider: string(req.Model.Provider)}, nil
-}
-
-func helperScriptPath() string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return filepath.Join("scripts", "faster_whisper_transcribe.py")
-	}
-	return filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(file))), "scripts", "faster_whisper_transcribe.py")
 }
 
 func defaultString(value, fallback string) string {

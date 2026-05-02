@@ -18,6 +18,7 @@ type Config struct {
 
 type AudioConfig struct {
 	Device     string `toml:"device"`
+	Driver     string `toml:"driver"`
 	SampleRate int    `toml:"sample_rate"`
 	Format     string `toml:"format"`
 }
@@ -43,6 +44,7 @@ func Default() Config {
 	return Config{
 		Audio: AudioConfig{
 			Device:     "default",
+			Driver:     "",
 			SampleRate: 16000,
 			Format:     "wav",
 		},

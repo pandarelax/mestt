@@ -19,6 +19,12 @@ func newTranscribeCmd(ctx context.Context, deps dependencies) *cobra.Command {
 		Short: "Transcribe an existing audio file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			transcribeService, cleanup, err := newTranscribeService()
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+
 			if clipboard && outputFile != "" {
 				return fmt.Errorf("--clipboard and --output cannot be used together")
 			}
@@ -36,7 +42,7 @@ func newTranscribeCmd(ctx context.Context, deps dependencies) *cobra.Command {
 				target = output.Target{Kind: output.TargetFile, Path: outputFile}
 			}
 
-			_, err := deps.Transcribe.Run(ctx, app.TranscribeInput{AudioPath: audioPath, Target: target})
+			_, err = transcribeService.Run(ctx, app.TranscribeInput{AudioPath: audioPath, Target: target})
 			return err
 		},
 	}

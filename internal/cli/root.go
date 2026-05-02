@@ -15,54 +15,18 @@ import (
 	"pandarelax/mestt/internal/paths"
 	"pandarelax/mestt/internal/secret"
 	"pandarelax/mestt/internal/transcribe"
+	recordtui "pandarelax/mestt/internal/tui/record"
 )
 
 const version = "0.1.0-dev"
 
 type dependencies struct {
-	Auth       app.AuthService
-	Audio      audio.Recorder
-	Transcribe app.TranscribeService
-	Record     app.RecordService
-	History    app.HistoryService
-	Paths      paths.Paths
+	Paths paths.Paths
 }
 
 func Run(ctx context.Context, args []string) error {
-	if _, err := logging.Setup(); err != nil {
-		return err
-	}
-
-	historyStore, err := history.Open()
-	if err != nil {
-		return err
-	}
-	defer historyStore.Close()
-
-	audioRecorder := audio.NewRecorder()
-
 	deps := dependencies{
-		Auth:  app.AuthService{Secrets: secret.NewFileStore()},
-		Audio: audioRecorder,
-		Transcribe: app.TranscribeService{
-			Secrets: secret.NewFileStore(),
-			History: historyStore,
-			Output:  output.Writer{},
-			Client:  transcribe.OpenAIClient{},
-			Local:   transcribe.LocalClient{},
-		},
-		Record: app.RecordService{
-			Recorder: audioRecorder,
-			Transcribe: app.TranscribeService{
-				Secrets: secret.NewFileStore(),
-				History: historyStore,
-				Output:  output.Writer{},
-				Client:  transcribe.OpenAIClient{},
-				Local:   transcribe.LocalClient{},
-			},
-		},
-		History: app.HistoryService{Store: historyStore},
-		Paths:   paths.Resolve(),
+		Paths: paths.Resolve(),
 	}
 
 	cmd := newRootCmd(ctx, deps)
@@ -89,6 +53,56 @@ func newRootCmd(ctx context.Context, deps dependencies) *cobra.Command {
 	cmd.AddCommand(newListDevicesCmd(ctx, deps))
 
 	return cmd
+}
+
+func newAuthService() app.AuthService {
+	return app.AuthService{Secrets: secret.NewFileStore()}
+}
+
+func newAudioRecorder() audio.Recorder {
+	return audio.NewRecorder()
+}
+
+func newTranscribeService() (app.TranscribeService, func(), error) {
+	if _, err := logging.Setup(); err != nil {
+		return app.TranscribeService{}, nil, err
+	}
+	historyStore, err := history.Open()
+	if err != nil {
+		return app.TranscribeService{}, nil, err
+	}
+	service := app.TranscribeService{
+		Secrets: secret.NewFileStore(),
+		History: historyStore,
+		Output:  output.Writer{},
+		Client:  transcribe.OpenAIClient{},
+		Local:   transcribe.LocalClient{},
+	}
+	return service, func() { _ = historyStore.Close() }, nil
+}
+
+func newRecordService() (app.RecordService, func(), error) {
+	transcribeService, cleanup, err := newTranscribeService()
+	if err != nil {
+		return app.RecordService{}, nil, err
+	}
+	service := app.RecordService{
+		Recorder:   newAudioRecorder(),
+		RunUI:      recordtui.Runner{},
+		Transcribe: transcribeService,
+	}
+	return service, cleanup, nil
+}
+
+func newHistoryService() (app.HistoryService, func(), error) {
+	if _, err := logging.Setup(); err != nil {
+		return app.HistoryService{}, nil, err
+	}
+	historyStore, err := history.Open()
+	if err != nil {
+		return app.HistoryService{}, nil, err
+	}
+	return app.HistoryService{Store: historyStore}, func() { _ = historyStore.Close() }, nil
 }
 
 func newVersionCmd() *cobra.Command {

@@ -18,6 +18,7 @@ func newAuthCmd(ctx context.Context, deps dependencies) *cobra.Command {
 		Use:   "auth",
 		Short: "Configure the OpenAI model and API key",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			authService := newAuthService()
 			reader := bufio.NewReader(cmd.InOrStdin())
 
 			models := transcribe.Models()
@@ -43,7 +44,7 @@ func newAuthCmd(ctx context.Context, deps dependencies) *cobra.Command {
 			}
 
 			if selected.Provider == transcribe.ProviderLocal {
-				if err := deps.Auth.SaveLocal(string(selected.ID)); err != nil {
+				if err := authService.SaveLocal(string(selected.ID)); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Saved local transcription configuration with model %s\n", selected.ID)
@@ -67,7 +68,7 @@ func newAuthCmd(ctx context.Context, deps dependencies) *cobra.Command {
 				apiKey = strings.TrimSpace(line)
 			}
 
-			if err := deps.Auth.SaveOpenAI(ctx, string(selected.ID), apiKey); err != nil {
+			if err := authService.SaveOpenAI(ctx, string(selected.ID), apiKey); err != nil {
 				return err
 			}
 

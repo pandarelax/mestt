@@ -18,6 +18,12 @@ func newRecordCmd(ctx context.Context, deps dependencies) *cobra.Command {
 		Use:   "record",
 		Short: "Record audio from the microphone",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			recordService, cleanup, err := newRecordService()
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+
 			if clipboard && outputFile != "" {
 				return fmt.Errorf("--clipboard and --output cannot be used together")
 			}
@@ -30,7 +36,7 @@ func newRecordCmd(ctx context.Context, deps dependencies) *cobra.Command {
 				target = output.Target{Kind: output.TargetFile, Path: outputFile}
 			}
 
-			return deps.Record.Run(ctx, app.RecordInput{Target: target})
+			return recordService.Run(ctx, app.RecordInput{Target: target})
 		},
 	}
 

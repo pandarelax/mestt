@@ -15,7 +15,13 @@ func newHistoryCmd(ctx context.Context, deps dependencies) *cobra.Command {
 		Use:   "history",
 		Short: "List previous transcriptions",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			entries, err := deps.History.List(ctx, limit)
+			historyService, cleanup, err := newHistoryService()
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+
+			entries, err := historyService.List(ctx, limit)
 			if err != nil {
 				return err
 			}

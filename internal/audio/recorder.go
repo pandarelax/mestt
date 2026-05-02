@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +25,13 @@ type Recorder struct {
 	GOOS       string
 }
 
+type SessionHandle interface {
+	Stop(ctx context.Context) (Recording, error)
+	Cancel() error
+	Duration() time.Duration
+	Levels() (float64, float64, error)
+}
+
 type Session struct {
 	cmd        *exec.Cmd
 	stdin      io.WriteCloser
@@ -40,7 +46,7 @@ func NewRecorder() Recorder {
 	return Recorder{GOOS: currentOS()}
 }
 
-func (r Recorder) Start(ctx context.Context, opts RecordOptions) (*Session, error) {
+func (r Recorder) Start(ctx context.Context, opts RecordOptions) (SessionHandle, error) {
 	ffmpegPath := r.FFmpegPath
 	if ffmpegPath == "" {
 		path, err := exec.LookPath("ffmpeg")
@@ -68,6 +74,13 @@ func (r Recorder) Start(ctx context.Context, opts RecordOptions) (*Session, erro
 	if err != nil {
 		_ = os.Remove(outputPath)
 		return nil, err
+	}
+	if r.goos() == "linux" && opts.Driver == "" {
+		args, err = buildRecordArgs(r.goos(), RecordOptions{Device: opts.Device, Driver: "pulse", SampleRate: opts.SampleRate, Format: opts.Format}, outputPath)
+		if err != nil {
+			_ = os.Remove(outputPath)
+			return nil, err
+		}
 	}
 
 	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
@@ -182,6 +195,9 @@ func (r Recorder) ListDevices(ctx context.Context) ([]Device, error) {
 		for _, driver := range []string{"pulse", "alsa"} {
 			devices, err := runListDevices(ctx, ffmpegPath, goos, driver)
 			if err == nil && len(devices) > 0 {
+				for i := range devices {
+					devices[i].Driver = driver
+				}
 				return devices, nil
 			}
 		}
@@ -220,8 +236,4 @@ func (r Recorder) goos() string {
 		return r.GOOS
 	}
 	return currentOS()
-}
-
-func tempRecordingName(dir string) string {
-	return filepath.Join(dir, fmt.Sprintf("recording-%d.wav", time.Now().UnixNano()))
 }

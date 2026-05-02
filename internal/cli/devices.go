@@ -12,7 +12,8 @@ func newListDevicesCmd(ctx context.Context, deps dependencies) *cobra.Command {
 		Use:   "list-devices",
 		Short: "List available audio input devices",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			devices, err := deps.Audio.ListDevices(ctx)
+			audioRecorder := newAudioRecorder()
+			devices, err := audioRecorder.ListDevices(ctx)
 			if err != nil {
 				return err
 			}
@@ -21,7 +22,7 @@ func newListDevicesCmd(ctx context.Context, deps dependencies) *cobra.Command {
 				if device.Default {
 					defaultLabel = " [default]"
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s%s\n", device.ID, device.Name, defaultLabel)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s:%s\t%s%s\n", device.Driver, device.ID, device.Name, defaultLabel)
 			}
 			return nil
 		},

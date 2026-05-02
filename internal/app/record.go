@@ -9,12 +9,26 @@ import (
 	"pandarelax/mestt/internal/audio"
 	"pandarelax/mestt/internal/config"
 	"pandarelax/mestt/internal/output"
+	"pandarelax/mestt/internal/transcribe"
 	recordtui "pandarelax/mestt/internal/tui/record"
 )
 
 type RecordService struct {
-	Recorder   audio.Recorder
-	Transcribe TranscribeService
+	Recorder   recorder
+	RunUI      recordingUIRunner
+	Transcribe transcribeRunner
+}
+
+type recorder interface {
+	Start(ctx context.Context, opts audio.RecordOptions) (audio.SessionHandle, error)
+}
+
+type recordingUIRunner interface {
+	Run(session audio.SessionHandle, target output.Target) (audio.Recording, error)
+}
+
+type transcribeRunner interface {
+	Run(ctx context.Context, input TranscribeInput) (transcribe.Result, error)
 }
 
 type RecordInput struct {
@@ -29,6 +43,7 @@ func (s RecordService) Run(ctx context.Context, input RecordInput) error {
 
 	session, err := s.Recorder.Start(ctx, audio.RecordOptions{
 		Device:     cfg.Audio.Device,
+		Driver:     cfg.Audio.Driver,
 		SampleRate: cfg.Audio.SampleRate,
 		Format:     cfg.Audio.Format,
 	})
@@ -36,7 +51,7 @@ func (s RecordService) Run(ctx context.Context, input RecordInput) error {
 		return err
 	}
 
-	recording, err := recordtui.Run(session, input.Target)
+	recording, err := s.RunUI.Run(session, input.Target)
 	if err != nil {
 		if errors.Is(err, recordtui.ErrCanceled) {
 			return nil
@@ -49,6 +64,7 @@ func (s RecordService) Run(ctx context.Context, input RecordInput) error {
 		AudioPath:  recording.Path,
 		Target:     input.Target,
 		SourceKind: "recording",
+		SourcePath: "",
 	})
 	if err != nil {
 		return fmt.Errorf("transcribe recording: %w", err)

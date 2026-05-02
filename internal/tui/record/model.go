@@ -16,7 +16,7 @@ import (
 var ErrCanceled = errors.New("recording canceled")
 
 type model struct {
-	session   *audio.Session
+	session   audio.SessionHandle
 	target    output.Target
 	status    string
 	elapsed   time.Duration
@@ -37,7 +37,7 @@ type cancelMsg struct {
 	err error
 }
 
-func Run(session *audio.Session, target output.Target) (audio.Recording, error) {
+func Run(session audio.SessionHandle, target output.Target) (audio.Recording, error) {
 	p := tea.NewProgram(model{session: session, target: target, status: "recording"})
 	finalModel, err := p.Run()
 	if err != nil {
@@ -51,6 +51,12 @@ func Run(session *audio.Session, target output.Target) (audio.Recording, error) 
 		return audio.Recording{}, m.err
 	}
 	return m.recording, nil
+}
+
+type Runner struct{}
+
+func (Runner) Run(session audio.SessionHandle, target output.Target) (audio.Recording, error) {
+	return Run(session, target)
 }
 
 func (m model) Init() tea.Cmd {
