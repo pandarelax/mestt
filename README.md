@@ -15,14 +15,14 @@ Current features:
 - record microphone audio from a terminal UI
 - transcribe existing audio files
 - OpenAI transcription backend
-- local `faster-whisper` transcription backend
+- local `whisper.cpp` transcription backend
 - output to stdout, clipboard, or file
 - local SQLite transcription history
 - Linux and macOS-oriented command surface
 
 Current limitations:
 
-- local GPU support depends on your `faster-whisper` / `ctranslate2` runtime build
+- local GPU support depends on how your `whisper.cpp` package was built
 - pause/resume recording is not implemented yet
 - device listing and recording behavior are best-effort across platforms
 - history is plain text output today
@@ -93,9 +93,9 @@ If you use OpenAI transcription, you need:
 
 ### Local Whisper Backend
 
-If you use local transcription, you need a working Python runtime with `faster-whisper` available.
+If you use local transcription, you need `whisper-cli` available in `PATH`.
 
-The repository currently supports local transcription through a small Python helper invoked by the Go application.
+`mestt` will try to download the selected standard Whisper model into its data directory on first use.
 
 ## Quick Start
 
@@ -232,14 +232,15 @@ format = "wav"
 
 [transcription]
 provider = "local"
-model = "large-v3-turbo"
+model = "large-v3-turbo-q5_0"
 timeout_seconds = 120
 base_url = "https://api.openai.com/v1"
 
 [local]
-python_command = "python3"
-device = "cpu"
-compute_type = "int8"
+command = "whisper-cli"
+download_command = "whisper-cpp-download-ggml-model"
+model_path = ""
+use_gpu = true
 
 [output]
 default_target = "stdout"
@@ -248,37 +249,27 @@ default_target = "stdout"
 Notes:
 
 - `transcription.provider` must match the selected model type
-- for local CPU mode, use:
-  - `device = "cpu"`
-  - `compute_type = "int8"`
-- for local GPU mode, you may try:
-  - `device = "cuda"`
-  - `compute_type = "float16"`
-  - but this requires a CUDA-enabled `ctranslate2` runtime
+- if `model_path` is empty, `mestt` uses `~/.local/share/mestt/models/ggml-<model>.bin`
+- `download_command` is used to fetch the standard model if the file is missing
+- set `use_gpu = false` to force CPU execution
 
 ## Local Whisper Notes
 
-`mestt` currently uses a local Python helper with `faster-whisper` for on-device transcription.
+`mestt` currently uses `whisper.cpp` for on-device transcription.
 
 Important behavior:
 
 - the model is typically downloaded on first use
 - first local transcription is usually slower than later runs
-- CPU mode is the safest default
-- GPU mode depends on how `faster-whisper` and `ctranslate2` were installed
+- `large-v3-turbo-q5_0` is the default built-in local model
+- known built-in models are verified before use so partial downloads fail clearly
+- GPU mode depends on how your `whisper.cpp` package was built
 
-If local GPU mode fails with an error like:
-
-```text
-This CTranslate2 package was not compiled with CUDA support
-```
-
-switch to CPU mode in config:
+If local GPU mode is unstable or unavailable, switch to CPU mode in config:
 
 ```toml
 [local]
-device = "cpu"
-compute_type = "int8"
+use_gpu = false
 ```
 
 ## File Locations
@@ -352,8 +343,7 @@ Try CPU mode:
 
 ```toml
 [local]
-device = "cpu"
-compute_type = "int8"
+use_gpu = false
 ```
 
 ### OpenAI transcription fails

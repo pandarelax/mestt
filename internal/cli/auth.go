@@ -16,7 +16,7 @@ import (
 func newAuthCmd(ctx context.Context, deps dependencies) *cobra.Command {
 	return &cobra.Command{
 		Use:   "auth",
-		Short: "Configure the OpenAI model and API key",
+		Short: "Configure the transcription model and credentials",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			authService := newAuthService()
 			reader := bufio.NewReader(cmd.InOrStdin())

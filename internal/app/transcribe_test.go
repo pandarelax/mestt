@@ -52,7 +52,11 @@ func (fakeOpenAIClient) Transcribe(_ context.Context, _ transcribe.Request) (tra
 type fakeLocalClient struct{}
 
 func (fakeLocalClient) Transcribe(_ context.Context, _ transcribe.LocalRequest) (transcribe.Result, error) {
-	return transcribe.Result{Text: "hello", ModelID: "large-v3-turbo", Provider: "local"}, nil
+	return transcribe.Result{Text: "hello", ModelID: "large-v3-turbo-q5_0", Provider: "local"}, nil
+}
+
+func (fakeLocalClient) Prepare(_ context.Context, _ transcribe.LocalRequest) error {
+	return nil
 }
 
 func TestTranscribeServiceRejectsProviderModelMismatch(t *testing.T) {
@@ -94,7 +98,7 @@ func TestTranscribeServiceOmitsRecordingSourcePath(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 	cfg.Transcription.Provider = "local"
-	cfg.Transcription.Model = "large-v3-turbo"
+	cfg.Transcription.Model = "large-v3-turbo-q5_0"
 	if err := config.Save(cfg); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}

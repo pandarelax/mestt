@@ -16,8 +16,10 @@ const (
 	ModelGPT4oTranscribe     ModelID = "gpt-4o-transcribe"
 	ModelWhisper1            ModelID = "whisper-1"
 	ModelLargeV3TurboLocal   ModelID = "large-v3-turbo"
-	ModelDistilLargeV3Local  ModelID = "distil-large-v3"
+	ModelLargeV3TurboQ5Local ModelID = "large-v3-turbo-q5_0"
 )
+
+const DefaultLocalModelID = ModelLargeV3TurboQ5Local
 
 type Model struct {
 	ID       ModelID
@@ -30,8 +32,8 @@ var models = []Model{
 	{ID: ModelGPT4oMiniTranscribe, Provider: ProviderOpenAI, Label: "GPT-4o Mini Transcribe", APIName: "gpt-4o-mini-transcribe"},
 	{ID: ModelGPT4oTranscribe, Provider: ProviderOpenAI, Label: "GPT-4o Transcribe", APIName: "gpt-4o-transcribe"},
 	{ID: ModelWhisper1, Provider: ProviderOpenAI, Label: "Whisper 1", APIName: "whisper-1"},
-	{ID: ModelLargeV3TurboLocal, Provider: ProviderLocal, Label: "Local Whisper Large V3 Turbo", APIName: "large-v3-turbo"},
-	{ID: ModelDistilLargeV3Local, Provider: ProviderLocal, Label: "Local Distil Whisper Large V3", APIName: "distil-large-v3"},
+	{ID: DefaultLocalModelID, Provider: ProviderLocal, Label: "Local Whisper.cpp Large V3 Turbo Q5", APIName: string(DefaultLocalModelID)},
+	{ID: ModelLargeV3TurboLocal, Provider: ProviderLocal, Label: "Local Whisper.cpp Large V3 Turbo", APIName: "large-v3-turbo"},
 }
 
 func Models() []Model {

@@ -31,9 +31,10 @@ type TranscriptionConfig struct {
 }
 
 type LocalConfig struct {
-	PythonCommand string `toml:"python_command"`
-	Device        string `toml:"device"`
-	ComputeType   string `toml:"compute_type"`
+	Command         string `toml:"command"`
+	DownloadCommand string `toml:"download_command"`
+	ModelPath       string `toml:"model_path"`
+	UseGPU          bool   `toml:"use_gpu"`
 }
 
 type OutputConfig struct {
@@ -55,9 +56,10 @@ func Default() Config {
 			BaseURL:        "https://api.openai.com/v1",
 		},
 		Local: LocalConfig{
-			PythonCommand: "python3",
-			Device:        "cpu",
-			ComputeType:   "int8",
+			Command:         "whisper-cli",
+			DownloadCommand: "whisper-cpp-download-ggml-model",
+			ModelPath:       "",
+			UseGPU:          true,
 		},
 		Output: OutputConfig{
 			DefaultTarget: "stdout",
@@ -88,8 +90,20 @@ func Load() (Config, error) {
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config file: %w", err)
 	}
+	if cfg.Normalize() {
+		if err := Save(cfg); err != nil {
+			return Config{}, err
+		}
+	}
 
 	return cfg, nil
+}
+
+func (c *Config) Normalize() bool {
+	if c == nil {
+		return false
+	}
+	return false
 }
 
 func Save(cfg Config) error {

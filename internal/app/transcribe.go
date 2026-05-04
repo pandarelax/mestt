@@ -35,6 +35,7 @@ type openAITranscriber interface {
 
 type localTranscriber interface {
 	Transcribe(ctx context.Context, req transcribe.LocalRequest) (transcribe.Result, error)
+	Prepare(ctx context.Context, req transcribe.LocalRequest) error
 }
 
 type TranscribeInput struct {
@@ -78,11 +79,12 @@ func (s TranscribeService) Run(ctx context.Context, input TranscribeInput) (tran
 		})
 	case transcribe.ProviderLocal:
 		result, err = s.Local.Transcribe(ctx, transcribe.LocalRequest{
-			AudioPath:     input.AudioPath,
-			Model:         model,
-			PythonCommand: cfg.Local.PythonCommand,
-			Device:        cfg.Local.Device,
-			ComputeType:   cfg.Local.ComputeType,
+			AudioPath:       input.AudioPath,
+			Model:           model,
+			Command:         cfg.Local.Command,
+			DownloadCommand: cfg.Local.DownloadCommand,
+			ModelPath:       cfg.Local.ModelPath,
+			UseGPU:          cfg.Local.UseGPU,
 		})
 	default:
 		return transcribe.Result{}, fmt.Errorf("unsupported transcription provider %q", model.Provider)
@@ -116,4 +118,30 @@ func (s TranscribeService) Run(ctx context.Context, input TranscribeInput) (tran
 	}
 
 	return result, nil
+}
+
+func (s TranscribeService) PrepareLocal(ctx context.Context) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if cfg.Transcription.Provider != string(transcribe.ProviderLocal) {
+		return nil
+	}
+
+	model, err := transcribe.LookupModel(cfg.Transcription.Model)
+	if err != nil {
+		return err
+	}
+	if model.Provider != transcribe.ProviderLocal {
+		return nil
+	}
+
+	return s.Local.Prepare(ctx, transcribe.LocalRequest{
+		Model:           model,
+		Command:         cfg.Local.Command,
+		DownloadCommand: cfg.Local.DownloadCommand,
+		ModelPath:       cfg.Local.ModelPath,
+		UseGPU:          cfg.Local.UseGPU,
+	})
 }

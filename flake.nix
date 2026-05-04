@@ -26,20 +26,6 @@
             config.allowUnfree = true;
           };
 
-          linuxCudaPackages =
-            with pkgs.cudaPackages;
-            [
-              cudatoolkit
-              cudnn
-              libcublas
-            ];
-
-          linuxPythonPackages = with pkgs.python314Packages; [
-            faster-whisper
-            ctranslate2
-          ];
-
-          linuxLibraryPath = pkgs.lib.makeLibraryPath linuxCudaPackages;
         in
         {
           default = pkgs.mkShell {
@@ -49,22 +35,16 @@
                 go
                 golangci-lint
                 ffmpeg
-                python314
+                whisper-cpp-vulkan
               ]
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux linuxPythonPackages
-              ++ pkgs.lib.optionals pkgs.stdenv.isLinux linuxCudaPackages
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
                 pkgs.wl-clipboard
                 pkgs.xclip
               ];
 
-            shellHook =
-              ''
-                export CGO_ENABLED=0
-              ''
-              + pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-                export LD_LIBRARY_PATH="${linuxLibraryPath}:$LD_LIBRARY_PATH"
-              '';
+            shellHook = ''
+              export CGO_ENABLED=0
+            '';
           };
         }
       );

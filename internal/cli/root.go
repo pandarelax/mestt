@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -30,9 +31,7 @@ func Run(ctx context.Context, args []string) error {
 	}
 
 	cmd := newRootCmd(ctx, deps)
-	if len(args) == 0 {
-		args = []string{"record"}
-	}
+	args = normalizeRootArgs(args)
 	cmd.SetArgs(args)
 	return cmd.Execute()
 }
@@ -90,6 +89,7 @@ func newRecordService() (app.RecordService, func(), error) {
 		Recorder:   newAudioRecorder(),
 		RunUI:      recordtui.Runner{},
 		Transcribe: transcribeService,
+		Prepare:    transcribeService,
 	}
 	return service, cleanup, nil
 }
@@ -134,4 +134,14 @@ func ensureFileExists(path string) error {
 		return fmt.Errorf("%s is a directory", path)
 	}
 	return nil
+}
+
+func normalizeRootArgs(args []string) []string {
+	if len(args) == 0 {
+		return []string{"record"}
+	}
+	if strings.HasPrefix(args[0], "-") {
+		return append([]string{"record"}, args...)
+	}
+	return args
 }
