@@ -155,7 +155,7 @@ func (a *App) StartRecording() GUIState {
 	state := a.setStateLocked(StatusPreparing, "Preparing local model...", "", "")
 	a.mu.Unlock()
 
-	go a.prepareAndStart(ctx, cancel)
+	go a.prepareAndStart(ctx)
 	return state
 }
 
@@ -180,7 +180,7 @@ func (a *App) StopAndTranscribe() GUIState {
 	state := a.setStateLocked(StatusTranscribing, "Transcribing...", "", "")
 	a.mu.Unlock()
 
-	go a.stopAndTranscribe(ctx, cancel, session)
+	go a.stopAndTranscribe(ctx, session)
 	return state
 }
 
@@ -227,7 +227,7 @@ func (a *App) Prepare() GUIState {
 	state := a.setStateLocked(StatusPreparing, "Preparing local model...", "", "")
 	a.mu.Unlock()
 
-	go a.prepareOnly(ctx, cancel)
+	go a.prepareOnly(ctx)
 	return state
 }
 
@@ -241,41 +241,55 @@ func (a *App) DismissError() GUIState {
 	return a.state
 }
 
-func (a *App) prepareOnly(ctx context.Context, cancel context.CancelFunc) {
+func (a *App) prepareOnly(ctx context.Context) {
 	err := a.prepare.PrepareLocal(ctx)
-	a.finishOperation(ctx)
 	if errors.Is(err, context.Canceled) {
-		a.setIdle()
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
+		})
 		return
 	}
 	if err != nil {
-		a.setError(err)
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusError, "Something went wrong", err.Error(), "")
+		})
 		return
 	}
-	a.setIdle()
+	a.finishOperationWithState(ctx, func() {
+		a.level = LevelState{}
+		a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
+	})
 }
 
-func (a *App) prepareAndStart(ctx context.Context, cancel context.CancelFunc) {
+func (a *App) prepareAndStart(ctx context.Context) {
 	err := a.prepare.PrepareLocal(ctx)
 	if errors.Is(err, context.Canceled) {
-		a.finishOperation(ctx)
-		a.setIdle()
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
+		})
 		return
 	}
 	if err != nil {
-		a.finishOperation(ctx)
-		a.setError(err)
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusError, "Something went wrong", err.Error(), "")
+		})
 		return
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		a.finishOperation(ctx)
-		a.setError(err)
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusError, "Something went wrong", err.Error(), "")
+		})
 		return
 	}
 
-	recordCtx, recordCancel := context.WithCancel(a.baseContext())
+	recordCtx, recordCancel := context.WithCancel(ctx)
 	session, err := a.recorder.Start(recordCtx, audio.RecordOptions{
 		Device:     cfg.Audio.Device,
 		Driver:     cfg.Audio.Driver,
@@ -284,18 +298,33 @@ func (a *App) prepareAndStart(ctx context.Context, cancel context.CancelFunc) {
 	})
 	if err != nil {
 		recordCancel()
-		a.finishOperation(ctx)
-		a.setError(err)
+		if errors.Is(err, context.Canceled) {
+			a.finishOperationWithState(ctx, func() {
+				a.level = LevelState{}
+				a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
+			})
+			return
+		}
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusError, "Something went wrong", err.Error(), "")
+		})
 		return
 	}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.operationCtx != ctx {
+		recordCancel()
+		_ = session.Cancel()
+		return
+	}
 	if ctx.Err() != nil {
 		a.operationCtx = nil
 		a.operationCancel = nil
 		recordCancel()
 		_ = session.Cancel()
+		a.level = LevelState{}
 		a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
 		return
 	}
@@ -303,18 +332,24 @@ func (a *App) prepareAndStart(ctx context.Context, cancel context.CancelFunc) {
 	a.operationCancel = nil
 	a.session = session
 	a.recordingCancel = recordCancel
+	a.level = LevelState{}
 	a.setStateLocked(StatusRecording, "Recording...", "", "")
 }
 
-func (a *App) stopAndTranscribe(ctx context.Context, cancel context.CancelFunc, session audio.SessionHandle) {
+func (a *App) stopAndTranscribe(ctx context.Context, session audio.SessionHandle) {
 	recording, err := session.Stop(ctx)
 	if err != nil {
-		a.finishOperation(ctx)
 		if errors.Is(err, context.Canceled) {
-			a.setIdle()
+			a.finishOperationWithState(ctx, func() {
+				a.level = LevelState{}
+				a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
+			})
 			return
 		}
-		a.setError(err)
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusError, "Something went wrong", err.Error(), "")
+		})
 		return
 	}
 	defer os.Remove(recording.Path)
@@ -325,29 +360,36 @@ func (a *App) stopAndTranscribe(ctx context.Context, cancel context.CancelFunc, 
 		SourceKind: "recording",
 		SourcePath: "",
 	})
-	a.finishOperation(ctx)
 	if errors.Is(err, context.Canceled) {
-		a.setIdle()
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusIdle, "Press Enter to record", "", "")
+		})
 		return
 	}
 	if err != nil {
-		a.setError(fmt.Errorf("transcribe recording: %w", err))
+		a.finishOperationWithState(ctx, func() {
+			a.level = LevelState{}
+			a.setStateLocked(StatusError, "Something went wrong", fmt.Errorf("transcribe recording: %w", err).Error(), "")
+		})
 		return
 	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.level = LevelState{}
-	a.setStateLocked(StatusCopied, "Copied to clipboard", "", result.Text)
+	_ = a.finishOperationWithState(ctx, func() {
+		a.level = LevelState{}
+		a.setStateLocked(StatusCopied, "Copied to clipboard", "", result.Text)
+	})
 }
 
-func (a *App) finishOperation(ctx context.Context) {
+func (a *App) finishOperationWithState(ctx context.Context, apply func()) bool {
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.operationCtx == ctx {
 		a.operationCtx = nil
 		a.operationCancel = nil
+		apply()
+		return true
 	}
-	a.mu.Unlock()
+	return false
 }
 
 func (a *App) setIdle() {

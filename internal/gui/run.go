@@ -4,11 +4,13 @@ package gui
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"pandarelax/mestt/internal/logging"
@@ -31,41 +33,53 @@ func RunFyne() error {
 	win.Resize(fyne.NewSize(420, 240))
 	win.SetFixedSize(true)
 
+	var closeOnce sync.Once
+	scheduleClose := func() {
+		closeOnce.Do(func() {
+			fyne.Do(func() {
+				win.Close()
+			})
+		})
+	}
+
 	statusLabel := widget.NewLabel("Press Enter to record")
 	detailLabel := widget.NewLabel("Ready to record.")
 	detailLabel.Wrapping = fyne.TextWrapWord
-	meter := widget.NewProgressBar()
-	primary := widget.NewButton("Record", nil)
-	secondary := widget.NewButton("Close", nil)
+	hintLabel := widget.NewLabel("Enter stop  Esc cancel")
+	hintLabel.Alignment = fyne.TextAlignCenter
+	waveform := newWaveformWidget()
 
 	content := container.NewVBox(
 		widget.NewLabel("mestt"),
 		statusLabel,
 		detailLabel,
-		meter,
-		container.NewGridWithColumns(2, primary, secondary),
+		waveform,
+		layout.NewSpacer(),
+		hintLabel,
 	)
 	win.SetContent(content)
 
 	applyState := func(state GUIState, levels LevelState) {
 		statusLabel.SetText(state.Message)
 		detailLabel.SetText(detailText(state))
-		applyButtons(primary, secondary, state.Status)
 		if state.Status == string(StatusRecording) {
-			meter.SetValue(clamp01(levels.Level / 100))
+			waveform.Push(levels.Level, levels.Peak)
 		} else {
-			meter.SetValue(idleMeterValue(state.Status))
+			waveform.SetIdle(state.Status)
 		}
+		waveform.Refresh()
+		hintLabel.SetText(hintText(state.Status))
 	}
 
-	triggerPrimary := func() {
+	stopRecording := func() {
 		state := backend.Status()
 		switch state.Status {
 		case string(StatusRecording):
 			applyState(backend.StopAndTranscribe(), LevelState{})
-		case string(StatusCopied), string(StatusError):
-			backend.DismissError()
-			applyState(backend.StartRecording(), LevelState{})
+		case string(StatusCopied):
+			scheduleClose()
+		case string(StatusError):
+			return
 		case string(StatusPreparing), string(StatusTranscribing):
 			return
 		default:
@@ -73,26 +87,23 @@ func RunFyne() error {
 		}
 	}
 
-	triggerSecondary := func() {
+	cancelAndClose := func() {
 		state := backend.Status()
 		switch state.Status {
 		case string(StatusPreparing), string(StatusRecording), string(StatusTranscribing):
-			applyState(backend.CancelRecording(), LevelState{})
-		case string(StatusCopied), string(StatusError):
-			applyState(backend.DismissError(), LevelState{})
+			backend.CancelRecording()
+			scheduleClose()
 		default:
-			win.Close()
+			scheduleClose()
 		}
 	}
 
-	primary.OnTapped = triggerPrimary
-	secondary.OnTapped = triggerSecondary
 	win.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
 		switch ev.Name {
 		case fyne.KeyReturn, fyne.KeyEnter:
-			triggerPrimary()
+			stopRecording()
 		case fyne.KeyEscape:
-			triggerSecondary()
+			cancelAndClose()
 		}
 	})
 
@@ -107,40 +118,16 @@ func RunFyne() error {
 			}
 			fyne.Do(func() {
 				applyState(state, levels)
+				if state.Status == string(StatusCopied) {
+					scheduleClose()
+				}
 			})
 		}
 	}()
 
-	applyState(backend.Status(), LevelState{})
+	applyState(backend.StartRecording(), LevelState{})
 	win.ShowAndRun()
 	return nil
-}
-
-func applyButtons(primary, secondary *widget.Button, status string) {
-	primary.Enable()
-	secondary.Enable()
-	switch status {
-	case string(StatusPreparing):
-		primary.SetText("Preparing...")
-		primary.Disable()
-		secondary.SetText("Cancel")
-	case string(StatusRecording):
-		primary.SetText("Stop")
-		secondary.SetText("Cancel")
-	case string(StatusTranscribing):
-		primary.SetText("Transcribing...")
-		primary.Disable()
-		secondary.SetText("Cancel")
-	case string(StatusCopied):
-		primary.SetText("Record Again")
-		secondary.SetText("Dismiss")
-	case string(StatusError):
-		primary.SetText("Retry")
-		secondary.SetText("Dismiss")
-	default:
-		primary.SetText("Record")
-		secondary.SetText("Close")
-	}
 }
 
 func detailText(state GUIState) string {
@@ -161,6 +148,21 @@ func detailText(state GUIState) string {
 		return "Transcript copied to the clipboard."
 	default:
 		return "Ready to record."
+	}
+}
+
+func hintText(status string) string {
+	switch status {
+	case string(StatusPreparing):
+		return "Esc cancel"
+	case string(StatusRecording):
+		return "Enter stop  Esc cancel"
+	case string(StatusTranscribing):
+		return "Esc cancel"
+	case string(StatusError):
+		return "Esc close"
+	default:
+		return ""
 	}
 }
 

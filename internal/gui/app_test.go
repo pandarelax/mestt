@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,13 +16,28 @@ import (
 )
 
 type fakeRecorder struct {
-	session audio.SessionHandle
-	err     error
-	called  bool
+	session    audio.SessionHandle
+	err        error
+	called     bool
+	startCtx   context.Context
+	startedCh  chan struct{}
+	blockOnCtx bool
 }
 
-func (f *fakeRecorder) Start(context.Context, audio.RecordOptions) (audio.SessionHandle, error) {
+func (f *fakeRecorder) Start(ctx context.Context, _ audio.RecordOptions) (audio.SessionHandle, error) {
 	f.called = true
+	f.startCtx = ctx
+	if f.startedCh != nil {
+		select {
+		case <-f.startedCh:
+		default:
+			close(f.startedCh)
+		}
+	}
+	if f.blockOnCtx {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -176,6 +192,78 @@ func TestStopAndTranscribeErrorBecomesVisible(t *testing.T) {
 	if app.Status().Error == "" {
 		t.Fatal("expected visible error")
 	}
+}
+
+func TestCanceledPrepareDoesNotClobberNewRecording(t *testing.T) {
+	var (
+		mu          sync.Mutex
+		calls       int
+		firstDoneCh = make(chan struct{})
+	)
+	preparer := &fakePreparer{fn: func(ctx context.Context) error {
+		mu.Lock()
+		calls++
+		call := calls
+		mu.Unlock()
+		if call == 1 {
+			<-ctx.Done()
+			close(firstDoneCh)
+			return ctx.Err()
+		}
+		return nil
+	}}
+
+	app := &App{
+		state:      GUIState{Status: string(StatusIdle), Message: "Press Enter to record", Ready: true},
+		recorder:   &fakeRecorder{session: &fakeSession{}},
+		transcribe: &fakeTranscriber{},
+		prepare:    preparer,
+	}
+
+	app.StartRecording()
+	waitForStatus(t, app, StatusPreparing)
+	app.CancelRecording()
+	select {
+	case <-firstDoneCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first prepare to finish")
+	}
+	app.StartRecording()
+	waitForStatus(t, app, StatusRecording)
+
+	time.Sleep(50 * time.Millisecond)
+	if got := app.Status().Status; got != string(StatusRecording) {
+		t.Fatalf("Status after restart = %q, want %q", got, StatusRecording)
+	}
+	if app.session == nil {
+		t.Fatal("expected active session after restart")
+	}
+}
+
+func TestCancelRecordingCancelsRecorderStartupContext(t *testing.T) {
+	recorder := &fakeRecorder{
+		startedCh:  make(chan struct{}),
+		blockOnCtx: true,
+	}
+	app := &App{
+		state:      GUIState{Status: string(StatusIdle), Message: "Press Enter to record", Ready: true},
+		recorder:   recorder,
+		transcribe: &fakeTranscriber{},
+		prepare:    &fakePreparer{},
+	}
+
+	app.StartRecording()
+	select {
+	case <-recorder.startedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for recorder startup")
+	}
+
+	app.CancelRecording()
+	waitForCondition(t, func() bool {
+		return recorder.startCtx != nil && recorder.startCtx.Err() != nil
+	}, "recorder startup context cancellation")
+	waitForStatus(t, app, StatusIdle)
 }
 
 func waitForStatus(t *testing.T, app *App, want Status) {
