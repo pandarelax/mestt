@@ -34,16 +34,26 @@
               [
                 go
                 golangci-lint
+                pkg-config
                 ffmpeg
                 whisper-cpp-vulkan
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                libGL
+                libx11
+                libxcursor
+                libxext
+                libxfixes
+                libxi
+                libxinerama
+                libxrandr
+                libxxf86vm
                 pkgs.wl-clipboard
                 pkgs.xclip
               ];
 
             shellHook = ''
-              export CGO_ENABLED=0
+              export CGO_ENABLED=1
             '';
           };
         }

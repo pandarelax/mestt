@@ -4,6 +4,8 @@
 
 It lets you record audio from the terminal, transcribe existing audio files, route transcripts to stdout, clipboard, or a file, and keep a local SQLite history.
 
+An optional Fyne popup GUI is also available for a small record-to-clipboard window.
+
 The project is inspired by tools like `ostt`, but is built idiomatically in Go with a small service-oriented architecture and a Bubble Tea recording UI.
 
 ## Status
@@ -68,6 +70,16 @@ direnv allow
 nix develop
 go build -o bin/mestt ./cmd/mestt
 ./bin/mestt version
+```
+
+### Optional: Build the Fyne GUI
+
+The GUI is behind the `fyne` build tag so normal CLI builds and tests do not require the Linux GUI stack.
+
+```sh
+nix develop
+go build -tags fyne -o bin/mestt-gui ./cmd/mestt-gui
+./bin/mestt-gui
 ```
 
 ## Requirements
@@ -173,6 +185,22 @@ In the recording UI:
 
 - `Enter`: stop and transcribe
 - `Esc`, `q`, `Ctrl+C`: cancel
+
+### GUI Popup
+
+Run the Fyne popup GUI:
+
+```sh
+go run -tags fyne ./cmd/mestt-gui
+```
+
+GUI controls:
+
+- `Enter` from idle: prepare and start recording
+- `Enter` while recording: stop, transcribe, and copy to clipboard
+- `Esc`: cancel active work or dismiss copied/error state
+
+On tiling window managers such as Niri, treat `mestt-record` as a small floating popup window.
 
 ### Output Modes
 

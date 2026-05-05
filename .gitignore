@@ -1,6 +1,8 @@
 # Go build artifacts
 /bin/
 /dist/
+/mestt
+/mestt-gui
 *.exe
 *.exe~
 *.dll
