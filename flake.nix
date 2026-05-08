@@ -6,7 +6,7 @@
   };
 
   outputs =
-    { nixpkgs, ... }:
+    { self, nixpkgs, ... }:
     let
       systems = [
         "x86_64-linux"
@@ -17,15 +17,74 @@
 
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in
+    let
+      forAllPkgs =
+        system:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
+    in
     {
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = forAllPkgs system;
+          linuxGuiInputs = with pkgs; [
+            libGL
+            libx11
+            libxcursor
+            libxext
+            libxfixes
+            libxi
+            libxinerama
+            libxrandr
+            libxxf86vm
+          ];
+          mestt = pkgs.buildGoModule {
+            pname = "mestt";
+            version = "0.1.0-dev";
+            src = pkgs.lib.cleanSource ./.;
+            vendorHash = "sha256-bTrzpDrzdP3KXEz+JK53C2fdV6Q2n37T58WUpOBHynI=";
+            subPackages = [ "cmd/mestt" "cmd/mesttd" ];
+          };
+          mestt-gui = pkgs.buildGoModule {
+            pname = "mestt-gui";
+            version = "0.1.0-dev";
+            src = pkgs.lib.cleanSource ./.;
+            vendorHash = "sha256-bTrzpDrzdP3KXEz+JK53C2fdV6Q2n37T58WUpOBHynI=";
+            subPackages = [ "cmd/mestt-gui" ];
+            tags = [ "fyne" ];
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux linuxGuiInputs;
+            env.CGO_ENABLED = 1;
+          };
+        in
+        {
+          inherit mestt mestt-gui;
+          default = mestt;
+        }
+      );
+
+      apps = forAllSystems (
+        system:
+        {
+          mestt = {
+            type = "app";
+            program = "${self.packages.${system}.mestt}/bin/mestt";
+          };
+          mestt-gui = {
+            type = "app";
+            program = "${self.packages.${system}.mestt-gui}/bin/mestt-gui";
+          };
+          default = self.apps.${system}.mestt;
+        }
+      );
+
       devShells = forAllSystems (
         system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-          };
-
+          pkgs = forAllPkgs system;
         in
         {
           default = pkgs.mkShell {

@@ -40,36 +40,67 @@ Current limitations:
 
 ## Install
 
-### Option 1: Build with Go
+### Option 1: Install User-Local Binaries
 
 Requirements:
 
 - Go 1.26+
 - `ffmpeg`
 
-Clone and build:
+Clone and install:
 
 ```sh
 git clone https://github.com/<your-org-or-user>/mestt.git
 cd mestt
-go build -o bin/mestt ./cmd/mestt
+./scripts/install.sh
 ```
 
-Run it:
+This installs:
+
+- `mestt`
+- `mestt-gui`
+- `mesttd`
+
+Default install location:
+
+- `~/.local/bin`
+
+Override the install directory if needed:
 
 ```sh
-./bin/mestt version
+MESTT_INSTALL_DIR=/some/bin/dir ./scripts/install.sh
 ```
 
-### Option 2: Use the Nix Dev Shell
-
-This repository includes a `flake.nix` and `.envrc` for `nix-direnv`.
+Verify:
 
 ```sh
-direnv allow
+mestt version
+mesttd doctor
+```
+
+If `mestt` is not found afterward, add `~/.local/bin` to your `PATH`.
+
+### Option 2: Use Nix
+
+Build packages directly:
+
+```sh
+nix build .#mestt
+nix build .#mestt-gui
+```
+
+Run apps directly:
+
+```sh
+nix run .#mestt -- version
+nix run .#mestt-gui
+```
+
+Or use the dev shell and install user-local binaries:
+
+```sh
 nix develop
-go build -o bin/mestt ./cmd/mestt
-./bin/mestt version
+./scripts/install.sh
 ```
 
 ### Optional: Build the Fyne GUI
@@ -202,6 +233,20 @@ GUI controls:
 
 On tiling window managers such as Niri, treat `mestt-record` as a small floating popup window.
 
+### Trigger Helper
+
+Run the popup trigger helper:
+
+```sh
+mesttd trigger
+```
+
+Inspect current trigger configuration:
+
+```sh
+mesttd doctor
+```
+
 ### Output Modes
 
 Default output is stdout.
@@ -272,6 +317,10 @@ use_gpu = true
 
 [output]
 default_target = "stdout"
+
+[daemon]
+trigger_command = "mestt-gui"
+trigger_args = []
 ```
 
 Notes:
@@ -280,6 +329,17 @@ Notes:
 - if `model_path` is empty, `mestt` uses `~/.local/share/mestt/models/ggml-<model>.bin`
 - `download_command` is used to fetch the standard model if the file is missing
 - set `use_gpu = false` to force CPU execution
+- `daemon.trigger_command` controls what `mesttd trigger` launches
+
+## Keybinding Integration
+
+For MVP, global hotkey capture is intentionally left to your desktop or compositor. Bind your launcher key to:
+
+```sh
+mesttd trigger
+```
+
+See `docs/daemon.md` for an example Niri configuration.
 
 ## Local Whisper Notes
 

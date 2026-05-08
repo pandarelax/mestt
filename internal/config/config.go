@@ -14,6 +14,7 @@ type Config struct {
 	Transcription TranscriptionConfig `toml:"transcription"`
 	Local         LocalConfig         `toml:"local"`
 	Output        OutputConfig        `toml:"output"`
+	Daemon        DaemonConfig        `toml:"daemon"`
 }
 
 type AudioConfig struct {
@@ -41,6 +42,11 @@ type OutputConfig struct {
 	DefaultTarget string `toml:"default_target"`
 }
 
+type DaemonConfig struct {
+	TriggerCommand string   `toml:"trigger_command"`
+	TriggerArgs    []string `toml:"trigger_args"`
+}
+
 func Default() Config {
 	return Config{
 		Audio: AudioConfig{
@@ -63,6 +69,10 @@ func Default() Config {
 		},
 		Output: OutputConfig{
 			DefaultTarget: "stdout",
+		},
+		Daemon: DaemonConfig{
+			TriggerCommand: "mestt-gui",
+			TriggerArgs:    nil,
 		},
 	}
 }

@@ -25,6 +25,9 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 	if !cfg.Local.UseGPU {
 		t.Fatal("expected local GPU usage to default to true")
 	}
+	if cfg.Daemon.TriggerCommand != "mestt-gui" {
+		t.Fatalf("unexpected default daemon trigger command %q", cfg.Daemon.TriggerCommand)
+	}
 
 	configFile := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "mestt", "config.toml")
 	if _, err := os.Stat(configFile); err != nil {
@@ -39,6 +42,8 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 
 	want := Default()
 	want.Transcription.Model = "whisper-1"
+	want.Daemon.TriggerCommand = "mesttd"
+	want.Daemon.TriggerArgs = []string{"trigger"}
 
 	if err := Save(want); err != nil {
 		t.Fatalf("Save() error = %v", err)
@@ -51,6 +56,12 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 
 	if got.Transcription.Model != want.Transcription.Model {
 		t.Fatalf("model = %q, want %q", got.Transcription.Model, want.Transcription.Model)
+	}
+	if got.Daemon.TriggerCommand != want.Daemon.TriggerCommand {
+		t.Fatalf("daemon trigger command = %q, want %q", got.Daemon.TriggerCommand, want.Daemon.TriggerCommand)
+	}
+	if len(got.Daemon.TriggerArgs) != len(want.Daemon.TriggerArgs) {
+		t.Fatalf("daemon trigger arg length = %d, want %d", len(got.Daemon.TriggerArgs), len(want.Daemon.TriggerArgs))
 	}
 }
 

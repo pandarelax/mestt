@@ -3,6 +3,7 @@
 /dist/
 /mestt
 /mestt-gui
+/result
 *.exe
 *.exe~
 *.dll
