@@ -10,7 +10,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"pandarelax/mestt/internal/logging"
@@ -30,8 +29,9 @@ func RunFyne() error {
 
 	guiApp := app.NewWithID("pandarelax.mestt")
 	win := guiApp.NewWindow("mestt-record")
-	win.Resize(fyne.NewSize(420, 240))
+	win.Resize(fyne.NewSize(360, 124))
 	win.SetFixedSize(true)
+	win.CenterOnScreen()
 
 	var closeOnce sync.Once
 	scheduleClose := func() {
@@ -42,26 +42,22 @@ func RunFyne() error {
 		})
 	}
 
-	statusLabel := widget.NewLabel("Press Enter to record")
-	detailLabel := widget.NewLabel("Ready to record.")
-	detailLabel.Wrapping = fyne.TextWrapWord
+	statusLabel := widget.NewLabel("Preparing...")
+	statusLabel.Alignment = fyne.TextAlignCenter
+	statusLabel.Wrapping = fyne.TextWrapWord
 	hintLabel := widget.NewLabel("Enter stop  Esc cancel")
 	hintLabel.Alignment = fyne.TextAlignCenter
 	waveform := newWaveformWidget()
 
-	content := container.NewVBox(
-		widget.NewLabel("mestt"),
+	content := container.NewPadded(container.NewVBox(
 		statusLabel,
-		detailLabel,
 		waveform,
-		layout.NewSpacer(),
 		hintLabel,
-	)
+	))
 	win.SetContent(content)
 
 	applyState := func(state GUIState, levels LevelState) {
-		statusLabel.SetText(state.Message)
-		detailLabel.SetText(detailText(state))
+		statusLabel.SetText(compactStatusText(state, levels))
 		if state.Status == string(StatusRecording) {
 			waveform.Push(levels.Level, levels.Peak)
 		} else {
@@ -128,27 +124,6 @@ func RunFyne() error {
 	applyState(backend.StartRecording(), LevelState{})
 	win.ShowAndRun()
 	return nil
-}
-
-func detailText(state GUIState) string {
-	if state.Error != "" {
-		return state.Error
-	}
-	if state.Text != "" && state.Status == string(StatusCopied) {
-		return state.Text
-	}
-	switch state.Status {
-	case string(StatusPreparing):
-		return "Checking local model and dependencies before recording starts."
-	case string(StatusRecording):
-		return "Recording microphone audio. Press Enter again to stop."
-	case string(StatusTranscribing):
-		return "Turning the captured audio into text and copying it to the clipboard."
-	case string(StatusCopied):
-		return "Transcript copied to the clipboard."
-	default:
-		return "Ready to record."
-	}
 }
 
 func hintText(status string) string {

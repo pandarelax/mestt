@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-const waveformBars = 40
+const waveformBars = 32
 
 type waveformWidget struct {
 	widget.BaseWidget
@@ -67,7 +67,7 @@ func (w *waveformWidget) CreateRenderer() fyne.WidgetRenderer {
 
 	for i := range w.lines {
 		line := canvas.NewLine(color.NRGBA{R: 114, G: 168, B: 255, A: 255})
-		line.StrokeWidth = 3
+		line.StrokeWidth = 2
 		w.lines[i] = line
 		objects = append(objects, line)
 	}
@@ -89,7 +89,7 @@ func (r *waveformRenderer) Layout(size fyne.Size) {
 }
 
 func (r *waveformRenderer) MinSize() fyne.Size {
-	return fyne.NewSize(320, 84)
+	return fyne.NewSize(300, 48)
 }
 
 func (r *waveformRenderer) Objects() []fyne.CanvasObject {
@@ -117,7 +117,7 @@ func (r *waveformRenderer) paint(size fyne.Size) {
 	leftPad := float32(6)
 	usableWidth := size.Width - (leftPad * 2)
 	spacing := usableWidth / float32(len(history))
-	maxHalfHeight := size.Height*0.42 - 2
+	maxHalfHeight := size.Height*0.44 - 2
 	peakBoost := peak * 0.12
 
 	r.widget.base.Position1 = fyne.NewPos(0, centerY)
